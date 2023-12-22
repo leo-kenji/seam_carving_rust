@@ -1,6 +1,8 @@
 use image::{io::Reader as ImageReader, DynamicImage, GrayImage, ImageBuffer, Luma, Rgb};
-use ndarray::{s, Array2, ArrayView2, Axis};
-use std::{error::Error, vec};
+use ndarray::{s, Array2, Axis};
+use num_traits::Zero;
+
+use std::{error::Error, ops::AddAssign, vec};
 
 fn apply_sobel<T: image::Primitive>(
     img: &ImageBuffer<Luma<T>, Vec<T>>,
@@ -70,29 +72,20 @@ fn apply_sobel<T: image::Primitive>(
 fn compute_energy(img: GrayImage) -> GrayImage {
     apply_sobel(&img)
 }
+// TODO test crate nshare
 
-fn compute_minimum_energy_map(energy: &GrayImage) -> GrayImage {
-    let w = energy.width() as usize;
-    let h = energy.height() as usize;
-    // TODO test crate nshare
-    let energy = ArrayView2::from_shape((h, w), energy.as_raw()).unwrap();
-    // TODO maybe min_energy being a copy of energy will be faster
-    let mut min_energy: Array2<u64> = Array2::zeros((h, w));
+fn compute_minimum_energy_map<T, U>(energy: &Array2<T>) -> Array2<U>
+where
+    T: Clone,
+    U: Zero + From<T> + PartialOrd + AddAssign + Copy,
+{
+    let w = energy.ncols();
+    let h = energy.nrows();
 
-    // TODO isso está meio nojento
-    let first = Array2::from_shape_vec(
-        (w, 1),
-        energy.slice(s![0, ..]).iter().map(|&x| x as u64).collect(),
-    )
-    .unwrap();
-
-    // WTF is this into_shape
-    min_energy
-        .slice_mut(s![0, ..])
-        .assign(&first.into_shape(w).unwrap());
+    let mut min_energy: Array2<U> = energy.mapv(|x| U::from(x));
 
     for row in 1..h {
-        // TODO this internal loop can be parallelized
+        // TODO maybe this internal loop can be parallelized
         for column in 0..w {
             let min_c = column.saturating_sub(1);
             let max_c = w.min(column + 2);
@@ -100,19 +93,13 @@ fn compute_minimum_energy_map(energy: &GrayImage) -> GrayImage {
             let min_path = *(min_energy
                 .slice(s![row - 1, min_c..max_c])
                 .iter()
-                .min()
+                .min_by(|&a, &b| a.partial_cmp(b).unwrap())
                 .unwrap());
-            min_energy[[row, column]] = energy[[row, column]] as u64 + min_path;
+            min_energy[[row, column]] += min_path;
         }
     }
 
-    let max = min_energy.iter().max().unwrap();
-    let temp = min_energy
-        .iter()
-        .map(|x| (x * (u8::MAX as u64)) / max)
-        .map(|x| x as u8)
-        .collect();
-    ImageBuffer::from_raw(w as u32, h as u32, temp).unwrap()
+    min_energy
 }
 
 fn find_min_energy_path(energy: &GrayImage) -> Vec<usize> {
