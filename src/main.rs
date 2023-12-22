@@ -1,72 +1,61 @@
-use image::{io::Reader as ImageReader, DynamicImage, GrayImage, ImageBuffer, Luma, Rgb};
-use ndarray::{s, Array2, Axis};
-use num_traits::Zero;
-
+use image::{io::Reader as ImageReader, DynamicImage, GrayImage, ImageBuffer, Rgb};
+use ndarray::{s, Array2, Axis, Zip};
+use num_traits::{real::Real, Num, ToPrimitive, Zero};
 use std::{error::Error, ops::AddAssign, vec};
 
-fn apply_sobel<T: image::Primitive>(
-    img: &ImageBuffer<Luma<T>, Vec<T>>,
-) -> ImageBuffer<Luma<T>, Vec<T>> {
-    let w = img.width();
-    let h = img.height();
+fn apply_sobel<T, U>(img: &Array2<T>) -> Array2<U>
+where
+    T: Num + ToPrimitive + Copy + Sync,
+    U: Clone + Zero + Real + Send + Zero,
+{
+    let w = img.ncols();
+    let h = img.nrows();
 
-    let mut buffer = Vec::with_capacity((w * h) as usize);
-    buffer.resize((w * h) as usize, 0.);
+    let mut buffer = Array2::zeros((h, w));
 
-    // TODO check if the image has the minimum size
-    for i in 0..w {
-        for j in 0..h {
-            let i1 = match i {
-                0 => w - 1,
-                _ => i - 1,
-            };
-            let i2 = i;
-            let i3 = match i {
-                x if x == w - 1 => 0,
-                _ => i + 1,
-            };
+    Zip::indexed(&mut buffer).for_each(|(j, i), x| {
+        let i1 = match i {
+            0 => w - 1,
+            _ => i - 1,
+        };
+        let i2 = i;
+        let i3 = match i {
+            x if x == w - 1 => 0,
+            _ => i + 1,
+        };
 
-            let j1 = match j {
-                0 => h - 1,
-                _ => j - 1,
-            };
-            let j2 = j;
-            let j3 = match j {
-                x if x == h - 1 => 0,
-                _ => j + 1,
-            };
+        let j1 = match j {
+            0 => h - 1,
+            _ => j - 1,
+        };
+        let j2 = j;
+        let j3 = match j {
+            x if x == h - 1 => 0,
+            _ => j + 1,
+        };
 
-            let val1 = img.get_pixel(i1, j1).0[0].to_f32().unwrap();
-            let val2 = img.get_pixel(i2, j1).0[0].to_f32().unwrap();
-            let val3 = img.get_pixel(i3, j1).0[0].to_f32().unwrap();
+        let val1 = U::from(img[[j1, i1]]).unwrap();
+        let val2 = U::from(img[[j1, i2]]).unwrap();
+        let val3 = U::from(img[[j1, i3]]).unwrap();
 
-            let val4 = img.get_pixel(i1, j2).0[0].to_f32().unwrap();
-            // let val5 = img.get_pixel(i2, j2).0[0].to_f32().unwrap();
-            let val6 = img.get_pixel(i3, j2).0[0].to_f32().unwrap();
+        let val4 = U::from(img[[j2, i1]]).unwrap();
+        // let val5 = U::from(img[[j2, i2]]).unwrap();
+        let val6 = U::from(img[[j2, i3]]).unwrap();
 
-            let val7 = img.get_pixel(i1, j3).0[0].to_f32().unwrap();
-            let val8 = img.get_pixel(i2, j3).0[0].to_f32().unwrap();
-            let val9 = img.get_pixel(i3, j3).0[0].to_f32().unwrap();
+        let val7 = U::from(img[[j3, i1]]).unwrap();
+        let val8 = U::from(img[[j3, i2]]).unwrap();
+        let val9 = U::from(img[[j3, i3]]).unwrap();
 
-            let s_x = val1 - val3 + 2. * val4 - 2. * val6 + val7 - val8;
-            let s_y = val1 + 2. * val2 + val3 - val7 - 2. * val8 - val9;
+        let s_x =
+            val1 - val3 + U::from(2).unwrap() * val4 - U::from(2).unwrap() * val6 + val7 - val8;
+        let s_y =
+            val1 + U::from(2).unwrap() * val2 + val3 - val7 - U::from(2).unwrap() * val8 - val9;
 
-            let mag = (s_x * s_x + s_y * s_y).sqrt();
+        let mag = (s_x * s_x + s_y * s_y).sqrt();
 
-            buffer[(j * w + i) as usize] = mag;
-        }
-    }
-    // Normalize
-    let max = buffer.iter().fold(f32::NEG_INFINITY, |max, &x| x.max(max));
-
-    // TODO Make this in place?
-    let buffer = buffer
-        .iter()
-        .map(|x| x / max * 255.)
-        .map(|x| T::from(x).unwrap())
-        .collect::<Vec<T>>();
-
-    ImageBuffer::from_raw(w, h, buffer).unwrap()
+        *x = mag;
+    });
+    buffer
 }
 
 fn compute_energy(img: GrayImage) -> GrayImage {
