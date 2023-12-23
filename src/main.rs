@@ -155,9 +155,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let original_img = ImageReader::open("Castle5565.jpg")?.decode()?;
 
     let mut image: DynamicImage = original_img;
-    for _ in 0..400 {
-        let energy = compute_energy(image.to_luma8());
-        let min_energy = compute_minimum_energy_map(&energy);
+    for _ in 0..100 {
+        let energy: Array2<f32> = compute_energy(&image);
+        let min_energy: Array2<f32> = compute_minimum_energy_map(&energy);
         let path = find_min_energy_path(&min_energy);
         image = remove_path(&image, path);
     }
