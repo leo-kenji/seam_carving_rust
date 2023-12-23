@@ -58,7 +58,16 @@ where
     buffer
 }
 
-fn compute_energy(img: GrayImage) -> GrayImage {
+fn compute_energy<T>(img: &DynamicImage) -> Array2<T>
+where
+    T: Real + Sync + Send,
+{
+    let img = img.clone().into_luma8();
+    let img: Array2<u8> = Array2::from_shape_vec(
+        (img.height() as usize, img.width() as usize),
+        img.as_raw().to_vec(),
+    )
+    .unwrap();
     apply_sobel(&img)
 }
 // TODO test crate nshare
