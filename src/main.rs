@@ -91,43 +91,39 @@ where
     min_energy
 }
 
-fn find_min_energy_path(energy: &GrayImage) -> Vec<usize> {
-    let n_rows = energy.height();
-    let w = energy.width();
+fn find_min_energy_path<T>(energy: &Array2<T>) -> Vec<usize>
+where
+    T: PartialOrd + Copy,
+{
+    let n_rows = energy.nrows();
+    let w = energy.ncols();
 
-    // TODO This probably does not need to be mut
-    let mut energy = Array2::from_shape_vec(
-        (energy.height() as usize, energy.width() as usize),
-        energy.as_raw().clone(),
-    )
-    .unwrap();
+    let mut idx = vec![0; n_rows];
 
-    energy.invert_axis(Axis(0));
-    let mut idx = vec![0; n_rows as usize];
+    // TODO this -1 can panic
     idx[0] = energy
-        .index_axis(Axis(0), 1)
-        .iter()
-        .enumerate()
-        .min_by(|(_, &a), (_, &b)| a.cmp(&b))
-        .map(|(index, _)| index)
+        .index_axis(Axis(0), n_rows - 1)
+        .indexed_iter()
+        .min_by(|(_, &x), (_, &y)| x.partial_cmp(&y).unwrap())
+        .map(|(i, _)| i)
         .unwrap();
-    // for (i, row) in energy.rows().enumerate()
-    for (i, row) in energy.axis_iter(Axis(0)).enumerate().skip(1) {
+
+    for (i, row) in energy.axis_iter(Axis(0)).rev().enumerate().skip(1) {
         let last_i = idx[i - 1];
         let min_i = last_i.saturating_sub(1);
-        let max_i = w.min(last_i as u32 + 2) as usize;
+        let max_i = w.min(last_i + 2) as usize;
 
         let temp = row
             .slice(s![min_i..max_i])
-            .iter()
-            .enumerate()
-            .min_by(|(_, &a), (_, &b)| a.cmp(&b))
+            .indexed_iter()
+            .min_by(|(_, &a), (_, &b)| a.partial_cmp(&b).unwrap())
             .map(|(index, _)| index)
             .unwrap();
         idx[i] = temp + min_i;
     }
 
-    idx.iter().rev().cloned().collect()
+    idx.reverse();
+    idx
 }
 
 fn remove_path(img: &DynamicImage, path: Vec<usize>) -> DynamicImage {
