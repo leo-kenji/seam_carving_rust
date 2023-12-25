@@ -358,6 +358,7 @@ dependencies = [
  "image",
  "imgref",
  "ndarray",
+ "num-traits",
 ]
 
 [[package]]
