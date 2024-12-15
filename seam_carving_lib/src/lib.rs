@@ -1,9 +1,19 @@
-use image::{DynamicImage, ImageBuffer, Rgb};
-use ndarray::{s, Array2, Axis, Zip};
-use num_traits::{real::Real, Num, ToPrimitive, Zero};
-use std::ops::AddAssign;
+use image::{DynamicImage, ImageBuffer, ImageReader, Rgb};
+use ndarray::{Array2, Axis, Zip, s};
+use num_traits::{Num, ToPrimitive, Zero, real::Real};
+use std::{error::Error, ops::AddAssign, path::Path};
 
-pub fn execute(mut image: DynamicImage, num_columns: u32) {
+pub struct ImageWrapper {
+    image: DynamicImage,
+}
+
+pub fn open_image(image_path: &Path) -> Result<ImageWrapper, Box<dyn Error>> {
+    let image = ImageReader::open(image_path)?.decode()?;
+    Ok(ImageWrapper { image })
+}
+
+pub fn execute(image: ImageWrapper, num_columns: u32) {
+    let mut image = image.image;
     for _ in 0..num_columns {
         let energy: Array2<f32> = compute_energy(&image);
         let min_energy: Array2<f32> = compute_minimum_energy_map(&energy);
@@ -123,7 +133,7 @@ where
     idx[0] = energy
         .index_axis(Axis(0), n_rows - 1)
         .indexed_iter()
-        .min_by(|(_, &x), (_, &y)| x.partial_cmp(&y).unwrap())
+        .min_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap())
         .map(|(i, _)| i)
         .unwrap();
 
@@ -135,7 +145,7 @@ where
         let temp = row
             .slice(s![min_i..max_i])
             .indexed_iter()
-            .min_by(|(_, &a), (_, &b)| a.partial_cmp(&b).unwrap())
+            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
             .map(|(index, _)| index)
             .unwrap();
         idx[i] = temp + min_i;

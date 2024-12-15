@@ -1,0 +1,10 @@
+[package]
+name = "seam_carving_lib"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ndarray = "0.16.1"
+image = "0.25.5"
+imgref = "1.11.0"
+num-traits = "0.2.17"

@@ -1,0 +1,8 @@
+[package]
+name = "seam_carving_bin"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bpaf = { version = "0.9.15", features = ["autocomplete", "derive", "color"] }
+seam_carving_lib = { version = "0.1.0", path = "../seam_carving_lib" }
